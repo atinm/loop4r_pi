@@ -1,0 +1,17 @@
+0 n 64  note mute_trigger 0  0 1  norm 0 127 0
+0 n 65  note mute_trigger 1  0 1  norm 0 127 0
+0 n 66  note mute_trigger 2  0 1  norm 0 127 0
+0 n 67  note mute_trigger 3  0 1  norm 0 127 0
+0 on 68  set select_next_loop -2  0 1  norm 0 127 0
+0 n 69  note multiply -3  0 1  norm 0 127 0
+0 n 70  note insert -3  0 1  norm 0 127 0
+0 n 71  note replace -3  0 1  norm 0 127 0
+0 n 72  note substitute -3  0 1  norm 0 127 0
+0 n 73  note undo -3  0 1  norm 0 127 0
+0 n 74  note undo_all -1  0 1  norm 0 127 0
+0 n 75  note mute_on -1  0 1  norm 0 127 0
+0 n 84  note record_or_overdub_excl 0  0 1  norm 0 127 0
+0 n 85  note record_or_overdub_excl 1  0 1  norm 0 127 0
+0 n 86  note record_or_overdub_excl 2  0 1  norm 0 127 0
+0 n 87  note record_or_overdub_excl 3  0 1  norm 0 127 0
+0 cc 103  set wet -2  0 1  norm 0 127 0
