@@ -1246,13 +1246,13 @@ private:
         wrote = snd_rawmidi_write(midiOut_, &ch, sizeof(ch));
         if (wrote != sizeof(ch))
         {
-            std::cerr << "Could not write CC " << (int)113 << " " << (int)(selectedLoop_ + 1) << std::endl;
+            std::cerr << "Could not write CC " << (int)108 << " " << (int)(selectedLoop_ + 1) << std::endl;
         }
 
         if (oscLedSenderInitialized_)
         {
-            std::cout << "cc " << 114 << " " << (int)(selectedLoop_ % 10) << std::endl;
-            oscLedSender.send("/display", (int)selectedLoop_);
+            std::cout << "cc " << 108 << " " << (int)(selectedLoop_ + 1) << std::endl;
+            oscLedSender.send("/display", (int)selectedLoop_);a
         }
     }
 
