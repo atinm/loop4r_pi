@@ -1252,7 +1252,7 @@ private:
         if (oscLedSenderInitialized_)
         {
             std::cout << "cc " << 108 << " " << (int)(selectedLoop_ + 1) << std::endl;
-            oscLedSender.send("/display", (int)selectedLoop_);a
+            oscLedSender.send("/display", (int)selectedLoop_);
         }
     }
 
