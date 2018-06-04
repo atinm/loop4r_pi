@@ -701,10 +701,9 @@ private:
         std::cerr << "mute " << loop << std::endl;
     }
 
-    void sendMuteAll(bool down)
+    void sendMuteAll()
     {
-        String buf = "/sl/-1/";
-        buf = buf + (down ? "down" : "up");
+        String buf = "/sl/-1/hit";
         oscSender.send(buf, (String) "mute_on");
         std::cerr << "mute all" << std::endl;
     }
@@ -764,10 +763,9 @@ private:
         std::cerr << "undo selected" << std::endl;
     }
 
-    void sendTriggerAll(bool down)
+    void sendTriggerAll()
     {
-        String buf = "/sl/-1/";
-        buf = buf + (down ? "down" : "up");
+        String buf = "/sl/-1/hit";
         oscSender.send(buf, (String) "trigger");
         std::cerr << "trigger all" << std::endl;
     }
@@ -887,7 +885,7 @@ private:
                     {
                         sendMuteSelected(down);
                     }
-                    else
+                    else if (down)
                     {
                         bool allMute = true;
                         for (auto&& loop : loops_)
@@ -902,11 +900,11 @@ private:
 
                         if (allMute)
                         {
-                            sendTriggerAll(down);
+                            sendTriggerAll();
                         }
                         else
                         {
-                            sendMuteAll(down);
+                            sendMuteAll();
                         }
                     }
                     break;
