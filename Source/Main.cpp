@@ -50,21 +50,21 @@ enum CommandIndex
 enum LoopStates
 {
     Unknown = -1,
-    Off = 0,
-    WaitStart,
-    Recording,
-    WaitStop,
-    Playing,
-    Overdubbing,
-    Multiplying,
-    Inserting,
-    Replacing,
-    Delay,
-    Muted,
-    Scratching,
-    OneShot,
-    Substitute,
-    Paused
+    Off = 20,
+    WaitStart = 1,
+    Recording = 2,
+    WaitStop = 3,
+    Playing = 4,
+    Overdubbing = 5,
+    Multiplying = 6,
+    Inserting = 7,
+    Replacing = 8,
+    Delay = 9,
+    Muted = 10,
+    Scratching = 11,
+    OneShot = 12,
+    Substitute = 13,
+    Paused = 14
 };
 
 enum LedStates
@@ -73,6 +73,12 @@ enum LedStates
     Light,
     Blink,
     FastBlink
+};
+
+enum Modes
+{
+    Play = 0,
+    Rec = 20
 };
 
 static const String& DEFAULT_VIRTUAL_OUT_NAME = "loop4r_control_out";
@@ -87,12 +93,18 @@ static const int TIMER_FASTBLINK = 1;
 static const int TIMER_BLINK = 3;
 
 // pedals (0-3 are assigned to loops 1..4)
+static const int TRACK1 = 0;
+static const int TRACK2 = 1;
+static const int TRACK3 = 2;
+static const int TRACK4 = 3;
 static const int RECORD = 4;
 static const int MULTIPLY = 5;
-static const int INSERT = 6;
-static const int REPLACE = 7;
+static const int REPLACE = 6;
+static const int INSERT = 7;
 static const int SUBSTITUTE = 8;
 static const int UNDO = 9;
+static const int CLEAR = UP;
+static const int MUTE = DOWN;
 static const int CONFIG = 23;
 
 struct ApplicationCommand
@@ -182,13 +194,12 @@ public:
         useHexadecimalsByDefault_ = false;
         oscSendPort_ = 9951;
         oscReceivePort_ = 9000;
-        oscLedSendPort_ = 9001;
         loopCount_ = 0;
         hostUrl_ = "";
         version_ = "";
         selectedLoop_ = -1;
         pinged_ = false;
-        mode_ = 0;
+        mode_ = Play;
         heartbeat_ = 5;
         engineId_ = 0;
         currentCommand_ = ApplicationCommand::Dummy();
@@ -316,7 +327,7 @@ public:
         if (currentReceivePort_ < 0 || currentSendPort_ < 0) {
             if (tryToConnectOsc())
             {
-                std::cerr << "Connected to OSC ports " << (int)currentReceivePort_ << " (in), " << (int) currentSendPort_ << " (out) and " << (int) currentLedSendPort_ << " (led)" << std::endl;
+                std::cerr << "Connected to OSC ports " << (int)currentReceivePort_ << " (in), " << (int) currentSendPort_ << " (out)" << std::endl;
                 heartbeat_ = 5;
             }
         }
@@ -384,71 +395,84 @@ public:
 
     void updateLoopLedState(Loop& loop, LoopStates newState)
     {
+        std::cerr << "updating " << loop.index_ << " state: ";
         switch (newState)
         {
             case Unknown:
             case Off:
+                std::cerr << "Off" << std::endl;
                 loop.led_.state_ = Dark;
                 loop.led_.timer_ = TIMER_OFF;
                 ledOff(loop.index_);
                 break;
             case WaitStart:
             case WaitStop:
+                std::cerr << "Wait Start/Stop" << std::endl;
                 loop.led_.state_ = FastBlink;
                 loop.led_.timer_ = TIMER_FASTBLINK;
                 ledOn(loop.index_);
                 break;
             case Recording:
+                std::cerr << "Recording" << std::endl;
                 loop.led_.state_ = Light;
                 loop.led_.timer_ = TIMER_OFF;
                 ledOn(loop.index_);
                 break;
             case Overdubbing:
+                std::cerr << "Overdubbing" << std::endl;
                 loop.led_.state_ = Light;
                 loop.led_.timer_ = TIMER_OFF;
                 ledOn(loop.index_);
                 break;
             case Inserting:
+                std::cerr << "Inserting" << std::endl;
                 loop.led_.state_ = FastBlink;
                 loop.led_.timer_ = TIMER_FASTBLINK;
                 ledOn(loop.index_);
                 ledOn(INSERT);
                 break;
             case Replacing:
+                std::cerr << "Replacing" << std::endl;
                 loop.led_.state_ = FastBlink;
                 loop.led_.timer_ = TIMER_FASTBLINK;
                 ledOn(loop.index_);
                 ledOn(REPLACE);
                 break;
             case Substitute:
+                std::cerr << "Substituting" << std::endl;
                 loop.led_.state_ = FastBlink;
                 loop.led_.timer_ = TIMER_FASTBLINK;
                 ledOn(loop.index_);
                 ledOn(SUBSTITUTE);
                 break;
             case Multiplying:
+                std::cerr << "Multiplying" << std::endl;
                 loop.led_.state_ = FastBlink;
                 loop.led_.timer_ = TIMER_FASTBLINK;
                 ledOn(loop.index_);
                 ledOn(MULTIPLY);
                 break;
             case Delay:
+                std::cerr << "Delay" << std::endl;
                 loop.led_.state_ = Light;
                 loop.led_.timer_ = TIMER_OFF;
                 ledOn(loop.index_);
                 break;
             case Scratching:
+                std::cerr << "Scratching" << std::endl;
                 loop.led_.state_ = Light;
                 loop.led_.timer_ = TIMER_OFF;
                 ledOn(loop.index_);
                 break;
             case OneShot:
+                std::cerr << "Oneshot" << std::endl;
                 loop.led_.state_ = Light;
                 loop.led_.timer_ = TIMER_OFF;
                 ledOn(loop.index_);
                 break;
             case Playing:
-                if (mode_ == 0)
+                std::cerr << "Playing" << std::endl;
+                if (mode_ == Play)
                 {
                     loop.led_.state_ = Light;
                     loop.led_.timer_ = TIMER_OFF;
@@ -463,11 +487,13 @@ public:
                 break;
             case Muted:
             case Paused:
+                std::cerr << "Muted/Paused" << std::endl;
                 loop.led_.state_ = Blink;
                 loop.led_.timer_ = TIMER_BLINK;
                 ledOn(loop.index_);
                 break;
             default:
+                std::cerr << "default" << std::endl;
                 loop.led_.state_ = Dark;
                 loop.led_.timer_ = TIMER_OFF;
                 ledOff(loop.index_);
@@ -479,17 +505,17 @@ public:
             // turn off any leds that are no longer active
             switch(loop.state_)
             {
-                case Inserting:
-                    ledOff(INSERT);
+                case Multiplying:
+                    ledOff(MULTIPLY);
                     break;
                 case Replacing:
                     ledOff(REPLACE);
                     break;
+                case Inserting:
+                    ledOff(INSERT);
+                    break;
                 case Substitute:
                     ledOff(SUBSTITUTE);
-                    break;
-                case Multiplying:
-                    ledOff(MULTIPLY);
                     break;
                 default:
                     break;
@@ -634,6 +660,144 @@ private:
         return channel == 0 || msg.getChannel() == channel;
     }
 
+    void sendClearAll(bool down)
+    {
+        String buf = "/sl/-1/";
+        buf = buf + (down ? "down" : "up");
+
+        oscSender.send(buf, (String) "undo_all");
+        std::cerr << "clear all" << std::endl;
+    }
+
+    void sendClearSelected(bool down)
+    {
+        String buf = "/sl/-3/";
+        buf = buf + (down ? "down" : "up");
+        oscSender.send(buf, (String) "undo_all");
+        std::cerr << "clear selected" << std::endl;
+    }
+
+    void sendInsert(int loop, bool down)
+    {
+        String buf = "/sl/-3/";
+        buf = buf + (down ? "down" : "up");
+        oscSender.send(buf, (String) "insert");
+        std::cerr << "insert " << loop << std::endl;
+    }
+
+    void sendMultiply(int loop, bool down)
+    {
+        String buf = "/sl/-3/";
+        buf = buf + (down ? "down" : "up");
+        oscSender.send(buf, (String) "multiply");
+        std::cerr << "multiply " << loop << std::endl;
+    }
+
+    void sendMute(int loop, bool down)
+    {
+        String buf = "/sl/-3/";
+        buf = buf + (down ? "down" : "up");
+        oscSender.send(buf, (String) "mute");
+        std::cerr << "mute " << loop << std::endl;
+    }
+
+    void sendMuteAll(bool down)
+    {
+        String buf = "/sl/-1/";
+        buf = buf + (down ? "down" : "up");
+        oscSender.send(buf, (String) "mute_on");
+        std::cerr << "mute all" << std::endl;
+    }
+
+    void sendMuteSelected(bool down)
+    {
+        String buf = "/sl/-3/";
+        buf = buf + (down ? "down" : "up");
+        oscSender.send(buf, (String) "mute");
+        std::cerr << "mute " << selectedLoop_ << std::endl;
+    }
+
+    void sendRecord(int loop, bool down)
+    {
+        String buf = "/sl/-3/";
+        buf = buf + (down ? "down" : "up");
+        oscSender.send(buf, (String) "record");
+        std::cerr << "record " << loop << std::endl;
+    }
+
+    void sendRecordSelected(bool down)
+    {
+        String buf = "/sl/-3/";
+        buf = buf + (down ? "down" : "up");
+        oscSender.send(buf, (String) "record");
+        std::cerr << "record selected" << std::endl;
+    }
+
+    void sendReplace(int loop, bool down)
+    {
+        String buf = "/sl/-3/";
+        buf = buf + (down ? "down" : "up");
+        oscSender.send(buf, (String) "replace");
+        std::cerr << "replace " << loop << std::endl;
+    }
+
+    void sendSelectTrack(int track)
+    {
+        String buf = "/set";
+        oscSender.send(buf, (String) "selected_loop_num", (int) track);
+        std::cerr << "select track" << track << std::endl;
+    }
+
+    void sendSubstitute(int loop, bool down)
+    {
+        String buf = "/sl/-3/";
+        buf = buf + (down ? "down" : "up");
+        oscSender.send(buf, (String) "substitute");
+        std::cerr << "substitute " << loop << std::endl;
+    }
+
+    void sendUndoSelected(bool down)
+    {
+        String buf = "/sl/-3/";
+        buf = buf + (down ? "down" : "up");
+        oscSender.send(buf, (String) "undo");
+        std::cerr << "undo selected" << std::endl;
+    }
+
+    void sendTriggerAll(bool down)
+    {
+        String buf = "/sl/-1/";
+        buf = buf + (down ? "down" : "up");
+        oscSender.send(buf, (String) "trigger");
+        std::cerr << "trigger all" << std::endl;
+    }
+
+    void sendUnmuteAll(bool down)
+    {
+        String buf = "/sl/-1/";
+        buf = buf + (down ? "down" : "up");
+        bool allMute = true;
+        for (auto&& loop : loops_)
+        {
+            if (loop.state_ != Unknown && loop.state_ != Off &&
+                loop.state_ != Muted && loop.state_ != Paused)
+            {
+                allMute = false;
+                break;
+            }
+        }
+
+        if (allMute) {
+            oscSender.send(buf, (String) "trigger");
+            std::cerr << "trigger all" << std::endl;
+        }
+        else
+        {
+            oscSender.send(buf, (String) "mute_off");
+            std::cerr << "mute_off all" << std::endl;
+        }
+    }
+
     void handleIncomingMidiMessage(MidiInput*, const MidiMessage& msg) override
     {
         if (!filterCommands_.isEmpty())
@@ -660,17 +824,133 @@ private:
 
         if (msg.isController()) {
             int pedalIdx = pedalIndex(msg.getControllerValue());
+            bool down = msg.getControllerNumber() == 104 ? true : false;
+
+            switch (pedalIdx)
+            {
+                case TRACK1:
+                case TRACK2:
+                case TRACK3:
+                case TRACK4:
+                    sendSelectTrack(pedalIdx);
+                    if (mode_ == Rec)
+                    {
+                        sendRecordSelected(down);
+                    }
+                    else
+                    {
+                        sendMuteSelected(down);
+                    }
+                    break;
+
+                case MULTIPLY:
+                    if (mode_ == Rec)
+                    {
+                        sendMultiply(selectedLoop_, down);
+                    }
+                    break;
+
+                case CLEAR:
+                    if (mode_ == Rec)
+                    {
+                        sendClearSelected(down);
+                    }
+                    else
+                    {
+                        sendClearAll(down);
+                    }
+                    break;
+
+                case REPLACE:
+                    if (mode_ == Rec)
+                    {
+                        sendReplace(selectedLoop_, down);
+                    }
+                    break;
+
+                case INSERT:
+                    if (mode_ == Rec)
+                    {
+                        sendInsert(selectedLoop_, down);
+                    }
+                    break;
+
+                case SUBSTITUTE:
+                    if (mode_ == Rec)
+                    {
+                        sendSubstitute(selectedLoop_, down);
+                    }
+                    break;
+
+                case MUTE:
+                    if (mode_ == Rec)
+                    {
+                        sendMuteSelected(down);
+                    }
+                    else
+                    {
+                        bool allMute = true;
+                        for (auto&& loop : loops_)
+                        {
+                            if (loop.state_ != Unknown && loop.state_ != Off &&
+                                loop.state_ != Muted && loop.state_ != Paused)
+                            {
+                                allMute = false;
+                                break;
+                            }
+                        }
+
+                        if (allMute)
+                        {
+                            sendTriggerAll(down);
+                        }
+                        else
+                        {
+                            sendMuteAll(down);
+                        }
+                    }
+                    break;
+
+                case UNDO:
+                    if (mode_ == Rec)
+                    {
+                        sendUndoSelected(down);
+                    }
+                    break;
+
+                case RECORD:
+                    if (!down)
+                    {
+                        mode_ = mode_ == Rec ? Play : Rec;
+                    }
+
+                    if (mode_ == Rec)
+                    {
+                        ledOn(RECORD);
+                    }
+                    else
+                    {
+                        ledOff(RECORD);
+                    }
+                    break;
+
+                default:
+                    break;
+            }
+            updateLoops();
+
+#if 0
             switch (msg.getControllerNumber()) {
                 case 104: // 1-10 pedal down
                     lastTime_ = (Time::getCurrentTime());
                     if (pedalIdx >= 0 && pedalIdx <= 3)
                     {
-                        sendMidiMessage(slMidiOut_, MidiMessage::noteOn(channel_, baseNote_+mode_+pedalIdx, (uint8)127));
+                        sendMidiMessage(slMidiOut_, MidiMessage::noteOn(channel_, baseNote_+(int)mode_+pedalIdx, (uint8)127));
                     }
                     else if (pedalIdx == RECORD)
                     {
-                        mode_ = mode_ > 0 ? 0 : 20;
-                        if (mode_ == 0) {
+                        mode_ = mode_ == Play ? Rec : Play;
+                        if (mode_ == Play) {
                             ledOff(pedalIdx);
                         }
                         else {
@@ -691,7 +971,7 @@ private:
                 case 105:
                     if (pedalIdx >= 0 && pedalIdx <= 3)
                     {
-                        sendMidiMessage(slMidiOut_, MidiMessage::noteOff(channel_, baseNote_+mode_+pedalIdx, (uint8)0));
+                        sendMidiMessage(slMidiOut_, MidiMessage::noteOff(channel_, baseNote_+(int)mode_+pedalIdx, (uint8)0));
                     }
                     else if (pedalIdx == RECORD)
                     {
@@ -713,6 +993,7 @@ private:
                     }
                 break;
             }
+#endif
         }
 
         if (msg.isNoteOn())
@@ -922,20 +1203,6 @@ private:
             return true;
         }
 
-        return false;
-    }
-
-    bool tryToConnectLedOsc() {
-        if (currentLedSendPort_ < 0) {
-            if (oscLedSender.connect ("127.0.0.1", oscLedSendPort_)) {
-                std::cerr << "Successfully connected to OSC LED Send port " << (int)oscLedSendPort_ << std::endl;
-                currentLedSendPort_ = oscLedSendPort_;
-            }
-        }
-
-        if (currentLedSendPort_ > 0) {
-            return true;
-        }
         return false;
     }
 
@@ -1213,7 +1480,6 @@ private:
             std::cerr << "Could not write CC " << (int)106 << " " << (int)ledNumber(pedalIdx) << std::endl;
         }
 
-
         if (oscLedSenderInitialized_)
         {
             std::cout << "cc " << 106 << " " << (int)ledNumber(pedalIdx) << std::endl;
@@ -1262,6 +1528,15 @@ private:
         buf = buf + "/" + std::to_string(index) + "/get";
         oscSender.send(buf,
                        (String) "state",
+                       (String) "osc.udp://localhost:" + std::to_string(currentReceivePort_) + "/",
+                       (String) "/ctrl");
+    }
+
+    void getSelectedLoop()
+    {
+        String buf = "/get";
+        oscSender.send(buf,
+                       (String) "selected_loop_num",
                        (String) "osc.udp://localhost:" + std::to_string(currentReceivePort_) + "/",
                        (String) "/ctrl");
     }
@@ -1349,6 +1624,7 @@ private:
                     registerAutoUpdates(i, false);
                     getCurrentState(i);
                 }
+                getSelectedLoop();
                 registerGlobalUpdates(false);
             }
             heartbeat_ = 5; // we just heard from the looper
@@ -1399,8 +1675,9 @@ private:
                         loops_.add({i, Off, leds_.getReference(i)});
                         registerAutoUpdates(i, false);
                         getCurrentState(i);
-                        updateLoops();
                     }
+                    getSelectedLoop();
+                    updateLoops();
                     registerGlobalUpdates(false);
                 }
             }
@@ -1413,8 +1690,9 @@ private:
                     {
                         registerAutoUpdates(i, false);
                         loops_.add({i, Off, leds_.getReference(i)});
-                        updateLoops();
                     }
+                    getSelectedLoop();
+                    updateLoops();
                     loopCount_ = numloops;
                 }
             }
@@ -1871,17 +2149,14 @@ private:
 
     int currentReceivePort_ = -1;
     int currentSendPort_ = -1;
-    int currentLedSendPort_ = -1;
     int channel_;
     int baseNote_;
     int selected_;
     int oscSendPort_;
     int oscReceivePort_;
-    int oscLedSendPort_;
     String oscRemoteHost_;
     int oscRemotePort_;
     int engineId_;
-    int mode_;
 
     Array<Loop> loops_;
     Array<LED> leds_;
@@ -1911,6 +2186,7 @@ private:
     String version_;
     int heartbeat_;
     bool heartbeatOn_ = false;
+    Modes mode_ = Play;
 
     ApplicationCommand currentCommand_;
     Time lastTime_;
