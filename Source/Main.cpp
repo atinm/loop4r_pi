@@ -50,7 +50,7 @@ enum CommandIndex
 enum LoopStates
 {
     Unknown = -1,
-    Off = 20,
+    Off = 0,
     WaitStart = 1,
     Recording = 2,
     WaitStop = 3,
@@ -64,7 +64,8 @@ enum LoopStates
     Scratching = 11,
     OneShot = 12,
     Substitute = 13,
-    Paused = 14
+    Paused = 14,
+    Last = 20
 };
 
 enum LedStates
@@ -150,12 +151,14 @@ struct LED {
 struct Loop {
     int index_;
     LoopStates state_;
+    bool empty_;
     LED& led_;
 
     void clear()
     {
         // we don't clear index_
         state_ = Off;
+        empty_ = true;
         led_.clear();
     }
 };
@@ -492,6 +495,12 @@ public:
                 loop.led_.timer_ = TIMER_BLINK;
                 ledOn(loop.index_);
                 break;
+            case Last:
+                std::cerr << "Last" << std::endl;
+                loop.led_.state_ = Dark;
+                loop.led_.timer_ = TIMER_OFF;
+                ledOff(loop.index_);
+                break;
             default:
                 std::cerr << "default" << std::endl;
                 loop.led_.state_ = Dark;
@@ -522,6 +531,7 @@ public:
             }
         }
         loop.state_ = newState;
+        loop.empty_ = loop.state_ == Off;
     }
 
     void shutdown() override
@@ -716,19 +726,27 @@ private:
         std::cerr << "mute " << selectedLoop_ << std::endl;
     }
 
-    void sendRecord(int loop, bool down)
+    void sendRecordOrOverdubSelected(bool down)
     {
         String buf = "/sl/-3/";
         buf = buf + (down ? "down" : "up");
-        oscSender.send(buf, (String) "record");
-        std::cerr << "record " << loop << std::endl;
-    }
-
-    void sendRecordSelected(bool down)
-    {
-        String buf = "/sl/-3/";
-        buf = buf + (down ? "down" : "up");
-        oscSender.send(buf, (String) "record");
+        auto loop = loops_.getReference(selectedLoop_);
+        if (loop.state_ == Recording)
+        {
+            oscSender.send(buf, (String) "record");
+        }
+        else if (loop.state_ == Overdubbing)
+        {
+            oscSender.send(buf, (String) "overdub");
+        }
+        else if (loop.empty_)
+        {
+            oscSender.send(buf, (String) "record");
+        }
+        else
+        {
+            oscSender.send(buf, (String) "overdub");
+        }
         std::cerr << "record selected" << std::endl;
     }
 
@@ -742,6 +760,7 @@ private:
 
     void sendSelectTrack(int track)
     {
+        selectedLoop_ = track;
         String buf = "/set";
         oscSender.send(buf, (String) "selected_loop_num", (int) track);
         std::cerr << "select track" << track << std::endl;
@@ -833,7 +852,7 @@ private:
                     sendSelectTrack(pedalIdx);
                     if (mode_ == Rec)
                     {
-                        sendRecordSelected(down);
+                        sendRecordOrOverdubSelected(down);
                     }
                     else
                     {
@@ -1618,7 +1637,7 @@ private:
                 loops_.clear();
                 for (i = 0; i < loopCount_; i++)
                 {
-                    loops_.add({i, Off, leds_.getReference(i)});
+                    loops_.add({i, Off, true, leds_.getReference(i)});
                     registerAutoUpdates(i, false);
                     getCurrentState(i);
                 }
@@ -1670,7 +1689,7 @@ private:
                     loops_.clear();
                     for (i = 0; i < loopCount_; i++)
                     {
-                        loops_.add({i, Off, leds_.getReference(i)});
+                        loops_.add({i, Off, true, leds_.getReference(i)});
                         registerAutoUpdates(i, false);
                         getCurrentState(i);
                     }
@@ -1687,7 +1706,7 @@ private:
                     for (auto i=loopCount_; i<numloops; i++)
                     {
                         registerAutoUpdates(i, false);
-                        loops_.add({i, Off, leds_.getReference(i)});
+                        loops_.add({i, Off, true, leds_.getReference(i)});
                     }
                     getSelectedLoop();
                     updateLoops();
@@ -1732,14 +1751,17 @@ private:
             }
             else
             {
-                if (arg->isString() && arg->getString() == "state")
+                if (arg->isString())
                 {
-                    ++arg;
-                    if (arg->isFloat32())
+                    if (arg->getString() == "state")
                     {
-                        loopState = arg->getFloat32();
-                        Loop &loop = loops_.getReference(loopIndex);
-                        updateLoopLedState(loop, static_cast<LoopStates>(loopState));
+                        ++arg;
+                        if (arg->isFloat32())
+                        {
+                            loopState = arg->getFloat32();
+                            Loop &loop = loops_.getReference(loopIndex);
+                            updateLoopLedState(loop, static_cast<LoopStates>(loopState));
+                        }
                     }
                 }
                 heartbeat_ = 5; // we just heard from the looper
