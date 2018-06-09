@@ -1259,7 +1259,7 @@ private:
             {
                 int err;
                 midiOut_ = nullptr;
-                midiOutName_ = cmd.opts_[0];
+                midiOutName_ = "hw:" + cmd.opts_[0] + ",0";
                 err = snd_rawmidi_open(NULL,&midiOut_, midiOutName_.toRawUTF8(), 0);
                 if (err)
                 {
