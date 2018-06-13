@@ -718,6 +718,13 @@ private:
         std::cerr << "mute all" << std::endl;
     }
 
+    void sendMuteOffAll()
+    {
+        String buf = "/sl/-1/hit";
+        oscSender.send(buf, (String) "mute_off");
+        std::cerr << "mute off all" << std::endl;
+    }
+
     void sendMuteSelected(bool down)
     {
         String buf = "/sl/-3/";
@@ -920,6 +927,8 @@ private:
                         if (allMute)
                         {
                             sendTriggerAll();
+                            sendMuteOffAll(); // unmute any empty
+                                              // tracks that didn't trigger
                         }
                         else
                         {
